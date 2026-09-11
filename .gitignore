@@ -6,8 +6,10 @@ out/
 .env.local
 .env.production
 .env*.local
+!.env.example
 
 tsconfig.tsbuildinfo
+*.tsbuildinfo
 
 npm-debug.log*
 yarn-debug.log*
