@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    @apply bg-background text-text-primary font-sans antialiased selection:bg-brand selection:text-text-primary;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  .hero-grid {
+    background-image: linear-gradient(to right, rgba(148,163,184,.055) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,.055) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+
+  input, select, textarea {
+    @apply transition-colors;
+  }
+
+  /* Focus Ring Accessibility Defaults */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-border-focus ring-offset-2 ring-offset-background transition-all;
+  }
+
+  /* Custom Scrollbar for Technical Feel */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-background;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border-strong rounded-sm hover:bg-text-muted transition-colors;
+  }
+}
+
+/* Typography Utility Classes */
+@layer components {
+  .eyebrow {
+    @apply font-mono text-2xs font-medium uppercase tracking-[.18em] text-brand;
+  }
+  .text-h1 {
+    @apply font-sans text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-text-primary;
+  }
+  .text-h2 {
+    @apply font-sans text-2xl sm:text-3xl font-semibold tracking-tight text-text-primary;
+  }
+  .text-h3 {
+    @apply font-sans text-xl sm:text-2xl font-semibold text-text-primary;
+  }
+  .text-h4 {
+    @apply font-sans text-lg font-medium text-text-primary;
+  }
+  .text-code {
+    @apply font-mono text-xs sm:text-sm text-text-secondary bg-surface-inset px-1.5 py-0.5 rounded border border-border-subtle;
+  }
+  .text-label {
+    @apply font-mono text-2xs uppercase tracking-wider text-text-muted font-medium;
+  }
+}

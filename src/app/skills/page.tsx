@@ -1,0 +1,9 @@
+import Link from "next/link";
+import { ArrowUpRight, Code2 } from "lucide-react";
+import { SKILL_CATEGORIES, SKILLS_DATA } from "@/data/skills";
+
+export const metadata = { title: "Skills", description: "Technology and engineering capabilities behind Nickson Muriithi's software work." };
+
+export default function SkillsPage() {
+  return <main className="pb-20"><section className="hero-grid border-b border-border-subtle"><div className="container py-16 sm:py-24"><p className="eyebrow">Technical toolkit</p><h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-[-.05em] sm:text-6xl">Technology chosen with intent.</h1><p className="mt-5 max-w-2xl text-lg leading-8 text-text-secondary">A practical toolkit for turning ambitious ideas into dependable products, platforms, and integrations.</p></div></section><section className="container grid gap-5 py-16 sm:grid-cols-2">{SKILL_CATEGORIES.map(category => { const skills = SKILLS_DATA.filter(skill => skill.category === category.id); return <article key={category.id} className="rounded-2xl border border-border bg-surface p-6"><Code2 className="h-5 w-5 text-brand" /><p className="eyebrow mt-5">{category.label}</p><h2 className="mt-2 text-xl font-semibold">{category.title}</h2><p className="mt-2 text-sm leading-6 text-text-secondary">{category.description}</p><div className="mt-5 space-y-3">{skills.map(skill => <div key={skill.id} className="rounded-xl bg-surface-inset p-4"><h3 className="font-medium">{skill.name}</h3><p className="mt-1 text-sm leading-6 text-text-secondary">{skill.roleDescription}</p></div>)}</div></article>; })}</section><section className="container"><Link href="/contact" className="inline-flex items-center gap-2 text-sm font-medium text-brand">Discuss your project <ArrowUpRight className="h-4 w-4" /></Link></section></main>;
+}
