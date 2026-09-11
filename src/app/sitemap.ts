@@ -16,7 +16,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Dynamic Case Study Routes from DB
   try {
     const projects = await db.project.findMany({
-      where: { status: "PUBLISHED" },
+      where: { published: true, publicationStatus: "PUBLISHED" },
       select: { slug: true, updatedAt: true },
     });
 

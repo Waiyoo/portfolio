@@ -10,18 +10,94 @@ export interface DiscoveryFilterParams {
   limit?: number;
 }
 
+interface SimilarityEntity {
+  id: string;
+  category: unknown;
+  technologies: string[];
+  features: unknown[];
+}
+
+function calculateProjectSimilarity(
+  source: SimilarityEntity,
+  candidate: SimilarityEntity
+): number {
+  if (source.id === candidate.id) return 0;
+
+  let score = 0;
+
+  if (
+    source.category &&
+    candidate.category &&
+    JSON.stringify(source.category) === JSON.stringify(candidate.category)
+  ) {
+    score += 3;
+  }
+
+  const sourceTech = new Set(source.technologies.map((item) => item.toLowerCase()));
+  const candidateTech = new Set(candidate.technologies.map((item) => item.toLowerCase()));
+
+  for (const technology of sourceTech) {
+    if (candidateTech.has(technology)) {
+      score += 2;
+    }
+  }
+
+  const sourceFeatures = new Set(
+    source.features.map((item) =>
+      typeof item === "string"
+        ? item.toLowerCase()
+        : JSON.stringify(item).toLowerCase()
+    )
+  );
+
+  const candidateFeatures = new Set(
+    candidate.features.map((item) =>
+      typeof item === "string"
+        ? item.toLowerCase()
+        : JSON.stringify(item).toLowerCase()
+    )
+  );
+
+  for (const feature of sourceFeatures) {
+    if (candidateFeatures.has(feature)) {
+      score += 1;
+    }
+  }
+
+  return score;
+}
+
 export class ProjectDiscoveryRepository {
   async findWithFilters(params: DiscoveryFilterParams) {
-    const { category, technology, search, sort = "newest", page = 1, limit = 9 } = params;
+    const {
+      category,
+      technology,
+      search,
+      sort = "newest",
+      page = 1,
+      limit = 9,
+    } = params;
 
     const where: Prisma.ProjectWhereInput = {
-      status: "PUBLISHED",
-      ...(category && category !== "ALL" ? { category } : {}),
+      published: true,
+      publicationStatus: "PUBLISHED",
+      ...(category && category !== "ALL"
+        ? {
+            category: {
+              slug: category,
+            },
+          }
+        : {}),
       ...(technology && technology !== "ALL"
         ? {
             technologies: {
               some: {
-                technology: { name: { equals: technology, mode: "insensitive" } },
+                technology: {
+                  name: {
+                    equals: technology,
+                    mode: "insensitive",
+                  },
+                },
               },
             },
           }
@@ -32,13 +108,30 @@ export class ProjectDiscoveryRepository {
               { title: { contains: search, mode: "insensitive" } },
               { tagline: { contains: search, mode: "insensitive" } },
               { overview: { contains: search, mode: "insensitive" } },
-              { features: { hasSome: [search] } },
+              {
+                features: {
+                  some: {
+                    OR: [
+                      { title: { contains: search, mode: "insensitive" } },
+                      {
+                        description: {
+                          contains: search,
+                          mode: "insensitive",
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
             ],
           }
         : {}),
     };
 
-    let orderBy: Prisma.ProjectOrderByWithRelationInput = { createdAt: "desc" };
+    let orderBy: Prisma.ProjectOrderByWithRelationInput = {
+      createdAt: "desc",
+    };
+
     if (sort === "oldest") orderBy = { createdAt: "asc" };
     if (sort === "title_asc") orderBy = { title: "asc" };
     if (sort === "title_desc") orderBy = { title: "desc" };
@@ -50,8 +143,23 @@ export class ProjectDiscoveryRepository {
         skip: (page - 1) * limit,
         take: limit,
         include: {
-          technologies: { include: { technology: true } },
-          media: { where: { isVisible: true }, orderBy: [{ isFeatured: "desc" }, { order: "asc" }] },
+          category: true,
+          technologies: {
+            include: {
+              technology: true,
+            },
+          },
+          features: {
+            orderBy: {
+              displayOrder: "asc",
+            },
+          },
+          images: {
+            orderBy: [
+              { isPrimary: "desc" },
+              { displayOrder: "asc" },
+            ],
+          },
         },
       }),
       db.project.count({ where }),
@@ -71,33 +179,60 @@ export class ProjectDiscoveryRepository {
   async findRelatedProjects(projectId: string, limit = 3) {
     const current = await db.project.findUnique({
       where: { id: projectId },
-      include: { technologies: { include: { technology: true } } },
+      include: {
+        category: true,
+        technologies: {
+          include: {
+            technology: true,
+          },
+        },
+        features: true,
+      },
     });
 
     if (!current) return [];
 
     const candidates = await db.project.findMany({
-      where: { status: "PUBLISHED", id: { not: projectId } },
+      where: {
+        published: true,
+        publicationStatus: "PUBLISHED",
+        id: { not: projectId },
+      },
       include: {
-        technologies: { include: { technology: true } },
-        media: { where: { isVisible: true, isFeatured: true } },
+        category: true,
+        technologies: {
+          include: {
+            technology: true,
+          },
+        },
+        features: true,
+        images: {
+          orderBy: [
+            { isPrimary: "desc" },
+            { displayOrder: "asc" },
+          ],
+        },
       },
     });
 
-    const sourceEntity = {
+    const sourceEntity: SimilarityEntity = {
       id: current.id,
       category: current.category,
-      technologies: current.technologies.map((t) => t.technology.name),
+      technologies: current.technologies.map(
+        (item) => item.technology.name
+      ),
       features: current.features,
     };
 
-    const scored = candidates.map((c) => ({
-      project: c,
+    const scored = candidates.map((candidate) => ({
+      project: candidate,
       score: calculateProjectSimilarity(sourceEntity, {
-        id: c.id,
-        category: c.category,
-        technologies: c.technologies.map((t) => t.technology.name),
-        features: c.features,
+        id: candidate.id,
+        category: candidate.category,
+        technologies: candidate.technologies.map(
+          (item) => item.technology.name
+        ),
+        features: candidate.features,
       }),
     }));
 
@@ -108,11 +243,19 @@ export class ProjectDiscoveryRepository {
   }
 
   async findRelatedServicesForProject(category: string) {
+    void category;
+
     return db.service.findMany({
-      where: { status: "PUBLISHED" },
+      where: {
+        published: true,
+      },
       take: 2,
+      orderBy: {
+        displayOrder: "asc",
+      },
     });
   }
 }
 
-export const projectDiscoveryRepository = new ProjectDiscoveryRepository();
+export const projectDiscoveryRepository =
+  new ProjectDiscoveryRepository();

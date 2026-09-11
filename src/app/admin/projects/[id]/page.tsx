@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export default function ProjectEditorPage({ params }: { params: { id: string } }) {
-  const router = Router = useRouter();
+  const router = useRouter();
   const existing = projectsStore.find((p) => p.id === params.id) || projectsStore[0];
   const [project, setProject] = useState<ProjectRecord>(existing);
 
