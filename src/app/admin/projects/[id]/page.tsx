@@ -1,38 +1,98 @@
 // src/app/admin/projects/[id]/page.tsx
 "use client";
 
-import React, { useState } from "react";
-import { projectsStore, logAuditAction } from "@/lib/store/adminStore";
+import React, { use, useEffect, useState } from "react";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { ProjectRecord } from "@/types/admin";
 import { Save, Trash2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-export default function ProjectEditorPage({ params }: { params: { id: string } }) {
-  const router = useRouter();
-  const existing = projectsStore.find((p) => p.id === params.id) || projectsStore[0];
-  const [project, setProject] = useState<ProjectRecord>(existing);
+const newProject = (): ProjectRecord => ({
+  id: "",
+  slug: "",
+  title: "",
+  category: "Business Management Systems",
+  tagline: "",
+  status: "DRAFT",
+  operationalStatus: "IN_DEVELOPMENT",
+  overview: "",
+  objective: "",
+  problem: "",
+  solution: "",
+  features: [],
+  technologies: [],
+  images: [],
+  links: {},
+  updatedAt: new Date().toISOString(),
+});
 
-  const handleSave = (e: React.FormEvent) => {
+export default function ProjectEditorPage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
+  const { id } = use(params);
+  const isNew = id === "new";
+  const [project, setProject] = useState<ProjectRecord>(newProject);
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isNew) return;
+    let active = true;
+    fetch(`/api/admin/projects/${id}`)
+      .then(async (response) => ({ response, result: await response.json() }))
+      .then(({ response, result }) => {
+        if (!active) return;
+        if (!response.ok || !result.success) {
+          setError(result.error || "Project not found.");
+          return;
+        }
+        setProject(result.data);
+      })
+      .catch(() => active && setError("Unable to load this project."));
+    return () => { active = false; };
+  }, [id, isNew]);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    const idx = projectsStore.findIndex((p) => p.id === project.id);
-    if (idx !== -1) {
-      projectsStore[idx] = { ...project, updatedAt: new Date().toISOString() };
-    } else {
-      projectsStore.push(project);
+    setError("");
+    if (!project.title.trim() || !project.slug.trim()) {
+      setError("Project title and slug are required.");
+      return;
     }
-    logAuditAction("PROJECT_UPDATE", project.title);
-    alert("Project saved successfully.");
-    router.push("/admin/projects");
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(isNew ? "/api/admin/projects" : `/api/admin/projects/${id}`, {
+        method: isNew ? "POST" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(project),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        setError(result.error || "Unable to save this project.");
+        return;
+      }
+      router.push("/admin/projects");
+      router.refresh();
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDelete = () => {
-    if (confirm("Are you sure you want to delete this project?")) {
-      const idx = projectsStore.findIndex((p) => p.id === project.id);
-      if (idx !== -1) projectsStore.splice(idx, 1);
-      logAuditAction("PROJECT_DELETE", project.title);
+  const handleDelete = async () => {
+    if (isNew) {
       router.push("/admin/projects");
+      return;
+    }
+    if (confirm("Are you sure you want to delete this project?")) {
+      const response = await fetch(`/api/admin/projects/${id}`, { method: "DELETE" });
+      if (!response.ok) {
+        setError("Unable to delete this project. Please try again.");
+        return;
+      }
+      router.push("/admin/projects");
+      router.refresh();
     }
   };
 
@@ -46,18 +106,19 @@ export default function ProjectEditorPage({ params }: { params: { id: string } }
             <Link href="/admin/projects" className="p-2 rounded bg-surface border border-border text-text-muted">
               <ArrowLeft className="h-4 w-4" />
             </Link>
-            <h1 className="text-xl font-bold text-text-primary">Editor: {project.title}</h1>
+            <h1 className="text-xl font-bold text-text-primary">{isNew ? "Create project" : `Editor: ${project.title || id}`}</h1>
           </div>
-          <button
+          {!isNew && <button
             onClick={handleDelete}
             className="py-1.5 px-3 rounded border border-status-rose/40 text-status-rose font-mono text-2xs hover:bg-rose-950/20 flex items-center gap-1"
           >
             <Trash2 className="h-3.5 w-3.5" />
             <span>DELETE</span>
-          </button>
+          </button>}
         </div>
 
         <form onSubmit={handleSave} className="p-6 rounded border border-border bg-surface space-y-4 text-xs">
+          {error && <p role="alert" className="rounded border border-status-rose/40 bg-rose-950/20 p-3 font-mono text-2xs text-status-rose">{error}</p>}
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
@@ -128,10 +189,11 @@ export default function ProjectEditorPage({ params }: { params: { id: string } }
 
           <button
             type="submit"
+            disabled={isSubmitting}
             className="w-full py-2 px-4 rounded bg-brand text-brand-contrast font-mono text-xs font-bold hover:bg-brand/90 flex items-center justify-center gap-2"
           >
             <Save className="h-4 w-4" />
-            <span>SAVE_PROJECT_CHANGES</span>
+            <span>{isSubmitting ? "SAVING…" : isNew ? "CREATE_PROJECT" : "SAVE_PROJECT_CHANGES"}</span>
           </button>
 
         </form>

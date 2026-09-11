@@ -1,13 +1,13 @@
 export class AppError extends Error {
-  statusCode: number;
-  code: string;
-  details?: unknown;
+  public readonly statusCode: number;
+  public readonly code: string;
+  public readonly details?: unknown;
 
   constructor(
     message: string,
     statusCode = 500,
-    details?: unknown,
-    code = "APP_ERROR"
+    code = "INTERNAL_SERVER_ERROR",
+    details?: unknown
   ) {
     super(message);
     this.name = "AppError";
@@ -19,22 +19,22 @@ export class AppError extends Error {
   }
 
   static notFound(message = "Resource not found.", details?: unknown): AppError {
-    return new AppError(message, 404, details, "NOT_FOUND");
+    return new AppError(message, 404, "NOT_FOUND", details);
   }
 
   static conflict(message = "Resource conflict.", details?: unknown): AppError {
-    return new AppError(message, 409, details, "CONFLICT");
+    return new AppError(message, 409, "CONFLICT", details);
   }
 
   static badRequest(message = "Bad request.", details?: unknown): AppError {
-    return new AppError(message, 400, details, "BAD_REQUEST");
+    return new AppError(message, 400, "BAD_REQUEST", details);
   }
 
   static unauthorized(message = "Unauthorized.", details?: unknown): AppError {
-    return new AppError(message, 401, details, "UNAUTHORIZED");
+    return new AppError(message, 401, "UNAUTHORIZED", details);
   }
 
   static forbidden(message = "Forbidden.", details?: unknown): AppError {
-    return new AppError(message, 403, details, "FORBIDDEN");
+    return new AppError(message, 403, "FORBIDDEN", details);
   }
 }

@@ -6,16 +6,32 @@ import { Terminal, Lock, Key } from "lucide-react";
 
 export default function AdminLoginPage() {
   const [passcode, setPasscode] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simplified session key validation
-    if (passcode === "riithis2026") {
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/admin/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: passcode }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        setError(result.error || "AUTHENTICATION_FAILED");
+        return;
+      }
       router.push("/admin");
-    } else {
-      setError(true);
+      router.refresh();
+    } catch {
+      setError("NETWORK_ERROR: Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -52,7 +68,7 @@ export default function AdminLoginPage() {
         {error && (
           <div className="p-3.5 rounded-xl border border-rose-800/50 bg-rose-950/30 text-rose-300 font-mono text-3xs text-center space-y-0.5">
             <span className="font-bold uppercase tracking-wider block">AUTHENTICATION_FAILED</span>
-            <span className="text-rose-400/80">INVALID_PASSCODE_PROVIDED</span>
+            <span className="text-rose-400/80">{error}</span>
           </div>
         )}
 
@@ -68,7 +84,7 @@ export default function AdminLoginPage() {
                 value={passcode}
                 onChange={(e) => {
                   setPasscode(e.target.value);
-                  if (error) setError(false);
+                  if (error) setError("");
                 }}
                 placeholder="••••••••••••"
                 className="w-full p-2.5 pl-9 rounded-xl bg-stone-900/40 border border-amber-900/30 text-stone-100 placeholder:text-stone-600 focus:border-amber-500/70 focus:outline-none focus:ring-1 focus:ring-amber-500/40 transition-all font-mono text-xs"
@@ -79,9 +95,10 @@ export default function AdminLoginPage() {
 
           <button
             type="submit"
+            disabled={isSubmitting}
             className="w-full py-3 rounded-full bg-gradient-to-r from-amber-700 via-amber-800 to-amber-900 font-mono text-xs font-semibold text-stone-100 shadow-xl shadow-amber-950/40 border border-amber-600/30 transition-all duration-300 hover:shadow-amber-900/60 hover:scale-[1.01] active:scale-[0.99] tracking-wider"
           >
-            AUTHORIZE_ACCESS
+            {isSubmitting ? "AUTHORIZING…" : "AUTHORIZE_ACCESS"}
           </button>
         </form>
 

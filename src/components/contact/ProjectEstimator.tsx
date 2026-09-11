@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, CircleAlert, MessageCircle, Send, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, Loader2, MessageCircle, Send, Sparkles } from "lucide-react";
 import { SYSTEM_META } from "@/lib/navigation-config";
+import { ContactApiResponse } from "@/types/contact";
 
 type Service = "website" | "ecommerce" | "system" | "mobile" | "integration" | "custom" | "unsure";
 type Method = "email" | "phone" | "whatsapp";
@@ -67,6 +68,8 @@ export function ProjectEstimator() {
   const [contact, setContact] = useState({ name: "", organization: "", phone: "", email: "", method: "email" as Method });
   const [error, setError] = useState("");
   const [emailOpened, setEmailOpened] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [responseState, setResponseState] = useState<ContactApiResponse | null>(null);
 
   const serviceName = services.find((item) => item.id === service)?.title || "Not selected";
   const estimate = useMemo(() => getEstimate(service, type, features.length, selectedIntegrations.filter((item) => item !== "None yet").length, scale), [service, type, features, selectedIntegrations, scale]);
@@ -79,9 +82,45 @@ export function ProjectEstimator() {
     if (!valid()) { setError(step === 3 ? "Tell us a little more about what you want the project to do." : "Please complete the required fields before continuing."); return; }
     setError(""); setStep((current) => Math.min(current + 1, steps.length - 1));
   };
+  const submitInquiry = async () => {
+    if (!valid()) {
+      setError("Please complete your contact details before sending the inquiry.");
+      return;
+    }
+
+    setError("");
+    setResponseState(null);
+    setIsSubmitting(true);
+    const projectType = service === "mobile" ? "mobile_app" : service === "integration" ? "api_integration" : service === "website" || service === "ecommerce" ? "web_application" : service === "system" || service === "custom" ? "custom_software" : "other";
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: contact.name,
+          email: contact.email,
+          organization: contact.organization || undefined,
+          preferredContactMethod: contact.method,
+          projectType,
+          message: summary,
+        }),
+      });
+      const result: ContactApiResponse = await response.json();
+      if (!response.ok || !result.success) {
+        setResponseState({ success: false, message: result.message || "We could not submit your inquiry. Please try again." });
+        return;
+      }
+      setResponseState(result);
+    } catch {
+      setResponseState({ success: false, message: "Network error. Please verify your connection and try again." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return <main className="min-h-screen bg-stone-950 pb-20 text-stone-200">
-    <section className="border-b border-amber-900/30 bg-[radial-gradient(ellipse_at_top,rgba(180,83,9,.16),transparent_55%)]"><div className="container py-12 sm:py-16"><p className="font-mono text-2xs font-semibold uppercase tracking-[.2em] text-amber-400">Project planner</p><h1 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight text-stone-100 sm:text-5xl">Start with a clear brief, not a long form.</h1><p className="mt-4 max-w-2xl text-base leading-7 text-stone-400">Answer a few focused questions to receive an indicative project range and a ready-to-send project summary.</p></div></section>
+    <section className="border-b border-amber-900/30 bg-[radial-gradient(ellipse_at_top,rgba(180,83,9,.16),transparent_55%)]"><div className="container py-12 sm:py-16"><p className="font-mono text-2xs font-semibold uppercase tracking-[.2em] text-amber-400">Contact · project planner</p><h1 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight text-stone-100 sm:text-5xl">Plan your project and send one clear inquiry.</h1><p className="mt-4 max-w-2xl text-base leading-7 text-stone-400">A short guided brief gives you an indicative range, then securely submits the same complete project summary for review.</p></div></section>
     <section className="container py-8 sm:py-12"><div className="mx-auto max-w-4xl">
       <ol className="mb-8 grid grid-cols-3 gap-2 sm:grid-cols-6" aria-label="Project estimator progress">{steps.map((label, index) => <li key={label}><button type="button" onClick={() => index < step && setStep(index)} disabled={index > step} className="w-full text-left disabled:cursor-default"><span className={`mb-2 block h-1 rounded-full ${index <= step ? "bg-amber-400" : "bg-stone-800"}`} /><span className={`block truncate font-mono text-3xs uppercase ${index === step ? "text-amber-300" : "text-stone-500"}`}>{index + 1}. {label}</span></button></li>)}</ol>
       <div className="rounded-3xl border border-amber-900/30 bg-stone-900/40 p-5 shadow-2xl backdrop-blur sm:p-8">
@@ -93,8 +132,10 @@ export function ProjectEstimator() {
         {step === 4 && <div className="grid gap-4 sm:grid-cols-2"><Field label="Name" value={contact.name} change={(value) => setContact({ ...contact, name: value })} required /><Field label="Company / organization" value={contact.organization} change={(value) => setContact({ ...contact, organization: value })} /><Field label="Phone / WhatsApp" value={contact.phone} change={(value) => setContact({ ...contact, phone: value })} type="tel" required /><Field label="Email" value={contact.email} change={(value) => setContact({ ...contact, email: value })} type="email" required /><div className="sm:col-span-2"><p className="text-sm font-medium text-stone-200">Preferred contact method</p><div className="mt-2 flex flex-wrap gap-2">{(["email", "whatsapp", "phone"] as Method[]).map((item) => <button type="button" key={item} onClick={() => setContact({ ...contact, method: item })} className={`rounded-full border px-4 py-2 text-sm capitalize ${contact.method === item ? "border-amber-400 bg-amber-950/50 text-amber-100" : "border-amber-900/30 text-stone-400"}`}>{item}</button>)}</div></div></div>}
         {step === 5 && <div className="space-y-6"><div className="rounded-2xl border border-amber-700/30 bg-amber-950/20 p-5"><p className="font-mono text-2xs uppercase tracking-wider text-amber-400">Estimated project range</p><p className="mt-2 text-2xl font-semibold text-stone-100 sm:text-3xl">{estimate.label}</p><p className="mt-2 text-sm leading-6 text-stone-400">{estimate.note} This is an estimated project range. Final pricing will be confirmed after reviewing the complete requirements.</p></div><Summary service={serviceName} type={type} features={features} integrations={selectedIntegrations} scale={scale} name={contact.name} email={contact.email} requirements={requirements} /></div>}
         {error && <p role="alert" className="mt-5 flex items-center gap-2 text-sm text-rose-300"><CircleAlert className="h-4 w-4" />{error}</p>}
+        {responseState?.success && <div role="status" className="mt-5 rounded-xl border border-emerald-500/40 bg-emerald-950/30 p-4 text-sm text-emerald-200"><div className="flex items-center gap-2 font-semibold"><CheckCircle2 className="h-4 w-4 text-emerald-400" />Inquiry received{responseState.inquiryId ? ` · Ref: ${responseState.inquiryId}` : ""}</div><p className="mt-1 text-stone-300">{responseState.message}</p></div>}
+        {responseState && !responseState.success && <p role="alert" className="mt-5 flex items-center gap-2 text-sm text-rose-300"><CircleAlert className="h-4 w-4" />{responseState.message}</p>}
         {emailOpened && <p role="status" className="mt-5 flex items-center gap-2 text-sm text-emerald-300"><Check className="h-4 w-4" />Your email app has been opened with the complete project brief.</p>}
-        <div className="mt-8 flex items-center justify-between gap-3 border-t border-amber-900/20 pt-5">{step > 0 ? <button type="button" onClick={() => { setError(""); setStep(step - 1); }} className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm text-stone-400 hover:text-stone-100"><ArrowLeft className="h-4 w-4" />Back</button> : <span />}{step < steps.length - 1 ? <button type="button" onClick={next} className="inline-flex items-center gap-2 rounded-full bg-amber-500 px-5 py-3 text-sm font-semibold text-stone-950 hover:bg-amber-400">Continue <ArrowRight className="h-4 w-4" /></button> : <div className="flex flex-wrap justify-end gap-3"><a href={emailHref} onClick={() => setEmailOpened(true)} className="inline-flex items-center gap-2 rounded-full bg-amber-500 px-5 py-3 text-sm font-semibold text-stone-950 hover:bg-amber-400"><Send className="h-4 w-4" />Request a quote</a>{whatsappHref ? <a href={whatsappHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-amber-700/50 px-5 py-3 text-sm font-semibold text-amber-200 hover:border-amber-400"><MessageCircle className="h-4 w-4" />Talk on WhatsApp</a> : <button type="button" disabled title="Set NEXT_PUBLIC_WHATSAPP_NUMBER to activate WhatsApp." className="inline-flex cursor-not-allowed items-center gap-2 rounded-full border border-amber-900/30 px-5 py-3 text-sm text-stone-500"><MessageCircle className="h-4 w-4" />Talk on WhatsApp</button>}</div>}</div>
+        <div className="mt-8 flex items-center justify-between gap-3 border-t border-amber-900/20 pt-5">{step > 0 ? <button type="button" onClick={() => { setError(""); setStep(step - 1); }} className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm text-stone-400 hover:text-stone-100"><ArrowLeft className="h-4 w-4" />Back</button> : <span />}{step < steps.length - 1 ? <button type="button" onClick={next} className="inline-flex items-center gap-2 rounded-full bg-amber-500 px-5 py-3 text-sm font-semibold text-stone-950 hover:bg-amber-400">Continue <ArrowRight className="h-4 w-4" /></button> : <div className="flex flex-wrap justify-end gap-3"><button type="button" onClick={submitInquiry} disabled={isSubmitting || responseState?.success} className="inline-flex items-center gap-2 rounded-full bg-amber-500 px-5 py-3 text-sm font-semibold text-stone-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60">{isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{isSubmitting ? "Sending inquiry…" : responseState?.success ? "Inquiry sent" : "Send inquiry"}</button><a href={emailHref} onClick={() => setEmailOpened(true)} className="inline-flex items-center gap-2 rounded-full border border-amber-700/50 px-5 py-3 text-sm font-semibold text-amber-200 hover:border-amber-400"><Send className="h-4 w-4" />Email a copy</a>{whatsappHref ? <a href={whatsappHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-amber-700/50 px-5 py-3 text-sm font-semibold text-amber-200 hover:border-amber-400"><MessageCircle className="h-4 w-4" />WhatsApp</a> : <button type="button" disabled title="Set NEXT_PUBLIC_WHATSAPP_NUMBER to activate WhatsApp." className="inline-flex cursor-not-allowed items-center gap-2 rounded-full border border-amber-900/30 px-5 py-3 text-sm text-stone-500"><MessageCircle className="h-4 w-4" />WhatsApp</button>}</div>}</div>
       </div>
     </div></section>
   </main>;
